@@ -1,0 +1,49 @@
+SELECT
+    DATEPART(year, s.EventDate) AS send_year,
+    RIGHT('0' + CAST(DATEPART(iso_week, s.EventDate) AS VARCHAR(2)), 2) AS week_number,
+    ISNULL(j.EmailName, 'JobID-' + CAST(s.JobID AS VARCHAR(20))) AS EmailName,
+    COUNT(s.SubscriberKey) AS numEmail,
+    ISNULL(SUM(opens.total_opens), 0) AS total_opens,
+    ISNULL(SUM(opens.unique_opens), 0) AS unique_opens,
+    ISNULL(SUM(clicks.total_clicks), 0) AS total_clicks,
+    ISNULL(SUM(clicks.unique_clicks), 0) AS unique_clicks,
+    ISNULL(SUM(unsubs.unsubscribes), 0) AS unsubscribes,
+    ISNULL(SUM(bounces.total_bounces), 0) AS total_bounces,
+    COUNT(s.SubscriberKey) - ISNULL(SUM(bounces.total_bounces), 0) AS total_delivered
+FROM [_Sent] s
+LEFT JOIN [_Job] j ON s.JobID = j.JobID
+LEFT JOIN (
+    SELECT JobID, SubscriberKey,
+           COUNT(*) AS total_opens, 
+           MAX(CAST(IsUnique AS INT)) AS unique_opens
+    FROM [_Open]
+    WHERE EventDate >= DATEADD(day, -180, GETDATE())
+    GROUP BY JobID, SubscriberKey
+) opens ON s.JobID = opens.JobID AND s.SubscriberKey = opens.SubscriberKey
+LEFT JOIN (
+    SELECT JobID, SubscriberKey,
+           COUNT(*) AS total_clicks, 
+           MAX(CAST(IsUnique AS INT)) AS unique_clicks
+    FROM [_Click]
+    WHERE EventDate >= DATEADD(day, -180, GETDATE())
+    GROUP BY JobID, SubscriberKey
+) clicks ON s.JobID = clicks.JobID AND s.SubscriberKey = clicks.SubscriberKey
+LEFT JOIN (
+    SELECT JobID, SubscriberKey, COUNT(*) AS unsubscribes
+    FROM [_Unsubscribe]
+    WHERE EventDate >= DATEADD(day, -180, GETDATE())
+    GROUP BY JobID, SubscriberKey
+) unsubs ON s.JobID = unsubs.JobID AND s.SubscriberKey = unsubs.SubscriberKey
+LEFT JOIN (
+    SELECT JobID, SubscriberKey, COUNT(*) AS total_bounces
+    FROM [_Bounce]
+    WHERE EventDate >= DATEADD(day, -180, GETDATE())
+    GROUP BY JobID, SubscriberKey
+) bounces ON s.JobID = bounces.JobID AND s.SubscriberKey = bounces.SubscriberKey
+WHERE s.EventDate >= DATEADD(day, -180, GETDATE())
+  AND s.JobID IN (55507, 50703, 74279, 50401, 27662, 58462, 40881, 44252, 58431, 55990, 58458, 40885, 58466, 56004, 27658, 58454, 40889, 58465, 27659, 43285, 58463, 56316)
+GROUP BY 
+    DATEPART(year, s.EventDate),
+    DATEPART(iso_week, s.EventDate),
+    j.EmailName,
+    s.JobID
